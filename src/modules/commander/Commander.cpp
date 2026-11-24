@@ -678,6 +678,15 @@ transition_result_t Commander::arm(arm_disarm_reason_t calling_reason, bool run_
 		return TRANSITION_DENIED;
 	}
 
+	// enforced outside the preflight checks so the re-arm grace period below cannot bypass it
+	if (_failsafe_flags.mode_req_prevent_arming & (1u << _vehicle_status.nav_state)) {
+		mavlink_log_critical(&_mavlink_log_pub, "Arming denied: mode not suitable for arming\t");
+		events::send(events::ID("commander_arm_denied_mode"), {events::Log::Critical, events::LogInternal::Info},
+			     "Arming denied: mode not suitable for arming");
+		tune_negative(true);
+		return TRANSITION_DENIED;
+	}
+
 	// allow a grace period for re-arming: preflight checks don't need to pass during that time, for example for accidental in-air disarming
 	if (calling_reason == arm_disarm_reason_t::rc_switch
 	    && ((_last_disarmed_timestamp != 0) && (hrt_elapsed_time(&_last_disarmed_timestamp) < 5_s))) {
